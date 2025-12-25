@@ -10,7 +10,7 @@ IIIF Manifestから各巻（range/structure）の **label** と **最初のCanva
 
 ## 使い方
 
-1. [ツールを開く](https://toyo-bunko.github.io/iiif-manifest-extractor/)
+1. [ツールを開く](https://nakamura196.github.io/iiif-manifest-extractor/)
 2. Manifest URLを入力
 3. 「抽出」ボタンをクリック
 4. 各巻のlabelと最初のCanvas URLが表示される
