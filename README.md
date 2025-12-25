@@ -4,35 +4,45 @@ IIIF Manifestから各巻（range/structure）の **label** と **最初のCanva
 
 ## 機能
 
-- IIIF Manifest URLを入力すると、`structures` に含まれる各rangeの情報を抽出
-- 各巻のlabelと最初のCanvas URLを一覧表示
-- 抽出データをJSONでコピー・ダウンロード可能
+- 複数のManifest URLを一括処理（1行に1つのURL）
+- 各巻・各章のlabelと最初のCanvas URLを一覧表示
+- CSV/JSON形式でのエクスポート
+- 処理進捗のリアルタイム表示
 
 ## 使い方
 
 1. [ツールを開く](https://nakamura196.github.io/iiif-manifest-extractor/)
-2. Manifest URLを入力
+2. Manifest URLをテキストエリアに入力（複数行可）
 3. 「抽出」ボタンをクリック
 4. 各巻のlabelと最初のCanvas URLが表示される
+5. 必要に応じてCSV/JSONでダウンロード
 
 ## 用途
 
-- リンクをクリックしたときに該当仏典の冒頭ページを開くためのデータ抽出
+- 各巻・各章の冒頭ページへのリンク作成
 - IIIF Manifestの構造解析
 
 ## サンプル
 
-増上寺蔵高麗版大蔵経:
+国立国会図書館デジタルコレクション「校異源氏物語. 巻一」:
 ```
-https://jodoshuzensho.jp/zojoji/koryo/manifests/001/001/0001/koryo_001_001_0001.json
+https://dl.ndl.go.jp/api/iiif/3437686/manifest.json
 ```
+
+## 制限事項
+
+- **IIIF Presentation API v2のみ対応**: v3形式のManifest（`items`を使用するもの）には対応していません
+- **CORS制限**: Manifestを提供するサーバーがCORSを許可している必要があります
 
 ## 技術仕様
 
 - 純粋なHTML/CSS/JavaScriptで構成（サーバー不要）
-- IIIF Presentation API 2.0/3.0 対応
-- GitHub Pagesでホスティング可能
+- GitHub Pagesでホスティング
+
+## 貢献
+
+貢献に興味がある方は [CONTRIBUTING.md](CONTRIBUTING.md) をご覧ください。
 
 ## ライセンス
 
-MIT License
+[MIT License](LICENSE)
