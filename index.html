@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IIIF Manifest 抽出ツール</title>
+  <style>
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'メイリオ', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 2px solid #8b4513;
+      padding-bottom: 10px;
+    }
+    .description {
+      background: #fff9e6;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border-left: 4px solid #8b4513;
+    }
+    .input-section {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      background: #8b4513;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #a0522d;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .results {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .manifest-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background: #8b4513;
+      color: white;
+    }
+    tr:hover {
+      background: #f9f9f9;
+    }
+    .canvas-link {
+      color: #0066cc;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .canvas-link:hover {
+      text-decoration: underline;
+    }
+    .copy-btn {
+      padding: 4px 8px;
+      font-size: 12px;
+      margin-left: 8px;
+      background: #666;
+    }
+    .error {
+      color: #c00;
+      padding: 10px;
+      background: #ffe0e0;
+      border-radius: 4px;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+    .export-section {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #ddd;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      font-family: monospace;
+      font-size: 12px;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .sample-url {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    .sample-url a {
+      color: #0066cc;
+    }
+  </style>
+</head>
+<body>
+  <h1>IIIF Manifest 抽出ツール</h1>
+
+  <div class="description">
+    <p>IIIF Manifestから各巻（range/structure）の<strong>label</strong>と<strong>最初のCanvas URL</strong>を抽出するツールです。</p>
+    <p>リンクをクリックしたときに該当仏典の冒頭ページを開くためのデータ抽出に利用できます。</p>
+  </div>
+
+  <div class="input-section">
+    <label for="manifestUrl">Manifest URL:</label>
+    <input type="text" id="manifestUrl" placeholder="https://example.com/manifest.json">
+    <div class="sample-url">
+      例: <a href="#" onclick="document.getElementById('manifestUrl').value='https://jodoshuzensho.jp/zojoji/koryo/manifests/001/001/0001/koryo_001_001_0001.json'; return false;">増上寺蔵高麗版大蔵経のサンプル</a>
+    </div>
+    <button id="fetchBtn" onclick="fetchManifest()">抽出</button>
+  </div>
+
+  <div id="results" class="results" style="display: none;">
+    <div id="manifestTitle" class="manifest-title"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Label（巻名）</th>
+          <th>最初のCanvas URL</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody">
+      </tbody>
+    </table>
+
+    <div class="export-section">
+      <label>JSON出力:</label>
+      <textarea id="jsonOutput" readonly></textarea>
+      <button onclick="copyJson()">JSONをコピー</button>
+      <button onclick="downloadJson()">JSONをダウンロード</button>
+    </div>
+  </div>
+
+  <script>
+    let extractedData = [];
+
+    async function fetchManifest() {
+      const url = document.getElementById('manifestUrl').value.trim();
+      if (!url) {
+        alert('URLを入力してください');
+        return;
+      }
+
+      const btn = document.getElementById('fetchBtn');
+      const resultsDiv = document.getElementById('results');
+      const resultsBody = document.getElementById('resultsBody');
+
+      btn.disabled = true;
+      btn.textContent = '読み込み中...';
+      resultsBody.innerHTML = '<tr><td colspan="4" class="loading">読み込み中...</td></tr>';
+      resultsDiv.style.display = 'block';
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const manifest = await response.json();
+
+        // Manifest タイトル
+        const title = manifest.label || 'タイトルなし';
+        document.getElementById('manifestTitle').textContent = title;
+
+        extractedData = [];
+        resultsBody.innerHTML = '';
+
+        // structures から range を抽出
+        if (manifest.structures && manifest.structures.length > 0) {
+          let index = 0;
+          for (const structure of manifest.structures) {
+            // 目次（親range）はスキップし、子rangeのみ処理
+            if (structure.ranges && structure.ranges.length > 0) {
+              // 親rangeの場合、子rangeを処理
+              continue;
+            }
+
+            // canvasesを持つrangeを処理
+            if (structure.canvases && structure.canvases.length > 0) {
+              const label = structure.label || '(ラベルなし)';
+              const firstCanvas = structure.canvases[0];
+
+              extractedData.push({
+                label: label,
+                firstCanvas: firstCanvas
+              });
+
+              index++;
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                <td>${index}</td>
+                <td>${escapeHtml(label)}</td>
+                <td><a href="${firstCanvas}" target="_blank" class="canvas-link">${firstCanvas}</a></td>
+                <td><button class="copy-btn" onclick="copyToClipboard('${firstCanvas}')">コピー</button></td>
+              `;
+              resultsBody.appendChild(row);
+            }
+          }
+        }
+
+        // structuresがない場合やデータが取れなかった場合、sequencesから取得を試みる
+        if (extractedData.length === 0 && manifest.sequences && manifest.sequences.length > 0) {
+          const canvases = manifest.sequences[0].canvases || [];
+          if (canvases.length > 0) {
+            extractedData.push({
+              label: manifest.label || 'Sequence 1',
+              firstCanvas: canvases[0]['@id'] || canvases[0].id
+            });
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>1</td>
+              <td>${escapeHtml(manifest.label || 'Sequence 1')}</td>
+              <td><a href="${extractedData[0].firstCanvas}" target="_blank" class="canvas-link">${extractedData[0].firstCanvas}</a></td>
+              <td><button class="copy-btn" onclick="copyToClipboard('${extractedData[0].firstCanvas}')">コピー</button></td>
+            `;
+            resultsBody.appendChild(row);
+          }
+        }
+
+        if (extractedData.length === 0) {
+          resultsBody.innerHTML = '<tr><td colspan="4" class="error">抽出可能なデータが見つかりませんでした</td></tr>';
+        }
+
+        // JSON出力
+        document.getElementById('jsonOutput').value = JSON.stringify(extractedData, null, 2);
+
+      } catch (error) {
+        resultsBody.innerHTML = `<tr><td colspan="4" class="error">エラー: ${escapeHtml(error.message)}</td></tr>';
+        console.error(error);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '抽出';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('コピーしました');
+      }).catch(err => {
+        console.error('コピー失敗:', err);
+      });
+    }
+
+    function copyJson() {
+      const json = document.getElementById('jsonOutput').value;
+      navigator.clipboard.writeText(json).then(() => {
+        alert('JSONをコピーしました');
+      }).catch(err => {
+        console.error('コピー失敗:', err);
+      });
+    }
+
+    function downloadJson() {
+      const json = document.getElementById('jsonOutput').value;
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'extracted_canvases.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Enterキーで実行
+    document.getElementById('manifestUrl').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        fetchManifest();
+      }
+    });
+  </script>
+</body>
+</html>
