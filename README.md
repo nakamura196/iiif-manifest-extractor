@@ -30,9 +30,13 @@ https://dl.ndl.go.jp/api/iiif/3437686/manifest.json
 https://dl.ndl.go.jp/api/iiif/3437687/manifest.json
 ```
 
+## 対応バージョン
+
+- IIIF Presentation API v2
+- IIIF Presentation API v3
+
 ## 制限事項
 
-- **IIIF Presentation API v2のみ対応**: v3形式のManifest（`items`を使用するもの）には対応していません
 - **CORS制限**: Manifestを提供するサーバーがCORSを許可している必要があります
 
 ## 技術仕様

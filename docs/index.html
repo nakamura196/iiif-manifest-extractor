@@ -163,7 +163,7 @@
   <div class="description">
     <p>IIIF Manifestから各巻（range/structure）の<strong>label</strong>と<strong>最初のCanvas URL</strong>を抽出するツールです。</p>
     <p>複数のManifest URLを一括処理できます（1行に1つのURLを入力）。</p>
-    <p style="font-size: 13px; color: #666; margin-top: 10px;">※ IIIF Presentation API v2のみ対応（v3には非対応）</p>
+    <p style="font-size: 13px; color: #666; margin-top: 10px;">※ IIIF Presentation API v2/v3 対応</p>
   </div>
 
   <div class="input-section">
@@ -208,6 +208,59 @@ https://example.com/manifest3.json"></textarea>
   <script>
     let extractedData = [];
 
+    // v3のlabelはオブジェクト形式の場合がある
+    function getLabel(label) {
+      if (!label) return '(ラベルなし)';
+      if (typeof label === 'string') return label;
+      // v3形式: { "en": ["Title"], "ja": ["タイトル"] }
+      if (typeof label === 'object') {
+        // 日本語優先
+        if (label.ja) return Array.isArray(label.ja) ? label.ja[0] : label.ja;
+        if (label.en) return Array.isArray(label.en) ? label.en[0] : label.en;
+        // 最初に見つかった言語
+        const keys = Object.keys(label);
+        if (keys.length > 0) {
+          const val = label[keys[0]];
+          return Array.isArray(val) ? val[0] : val;
+        }
+      }
+      return '(ラベルなし)';
+    }
+
+    // v3のstructuresからCanvas IDを取得
+    function getFirstCanvasFromV3Range(range) {
+      if (!range.items || range.items.length === 0) return null;
+      for (const item of range.items) {
+        // Canvas直接参照
+        if (item.type === 'Canvas') {
+          return item.id;
+        }
+        // Canvas参照（idのみ）
+        if (typeof item === 'object' && item.id && !item.type) {
+          return item.id;
+        }
+        // 子Range
+        if (item.type === 'Range') {
+          const canvas = getFirstCanvasFromV3Range(item);
+          if (canvas) return canvas;
+        }
+      }
+      return null;
+    }
+
+    // manifestがv3かどうか判定
+    function isV3Manifest(manifest) {
+      if (manifest.items && Array.isArray(manifest.items)) return true;
+      const context = manifest['@context'];
+      if (typeof context === 'string') {
+        return context.includes('presentation/3');
+      }
+      if (Array.isArray(context)) {
+        return context.some(c => typeof c === 'string' && c.includes('presentation/3'));
+      }
+      return false;
+    }
+
     async function fetchManifests() {
       const urlsText = document.getElementById('manifestUrls').value.trim();
       if (!urlsText) {
@@ -249,20 +302,36 @@ https://example.com/manifest3.json"></textarea>
           const manifest = await response.json();
 
           let foundData = false;
+          const isV3 = isV3Manifest(manifest);
 
           // structures から range を抽出
           if (manifest.structures && manifest.structures.length > 0) {
             for (const structure of manifest.structures) {
-              // 目次（親range）はスキップし、子rangeのみ処理
-              if (structure.ranges && structure.ranges.length > 0) {
+              // v2: 目次（親range）はスキップし、子rangeのみ処理
+              if (!isV3 && structure.ranges && structure.ranges.length > 0) {
                 continue;
               }
 
-              // canvasesを持つrangeを処理
-              if (structure.canvases && structure.canvases.length > 0) {
-                const label = structure.label || '(ラベルなし)';
-                const firstCanvas = structure.canvases[0];
+              let label = null;
+              let firstCanvas = null;
 
+              if (isV3) {
+                // v3形式
+                // 親Range（子Rangeを持つ）はスキップ
+                if (structure.items && structure.items.some(item => item.type === 'Range')) {
+                  continue;
+                }
+                label = getLabel(structure.label);
+                firstCanvas = getFirstCanvasFromV3Range(structure);
+              } else {
+                // v2形式: canvasesを持つrangeを処理
+                if (structure.canvases && structure.canvases.length > 0) {
+                  label = getLabel(structure.label);
+                  firstCanvas = structure.canvases[0];
+                }
+              }
+
+              if (label && firstCanvas) {
                 extractedData.push({
                   manifestUrl: url,
                   label: label,
@@ -284,13 +353,25 @@ https://example.com/manifest3.json"></textarea>
             }
           }
 
-          // structuresがない場合やデータが取れなかった場合、sequencesから取得を試みる
-          if (!foundData && manifest.sequences && manifest.sequences.length > 0) {
-            const canvases = manifest.sequences[0].canvases || [];
-            if (canvases.length > 0) {
-              const label = manifest.label || 'Sequence 1';
-              const firstCanvas = canvases[0]['@id'] || canvases[0].id;
+          // structuresがない場合やデータが取れなかった場合、フォールバック
+          if (!foundData) {
+            let label = null;
+            let firstCanvas = null;
 
+            if (isV3 && manifest.items && manifest.items.length > 0) {
+              // v3: itemsから最初のCanvasを取得
+              label = getLabel(manifest.label) || 'Items';
+              firstCanvas = manifest.items[0].id;
+            } else if (!isV3 && manifest.sequences && manifest.sequences.length > 0) {
+              // v2: sequencesから最初のCanvasを取得
+              const canvases = manifest.sequences[0].canvases || [];
+              if (canvases.length > 0) {
+                label = getLabel(manifest.label) || 'Sequence 1';
+                firstCanvas = canvases[0]['@id'] || canvases[0].id;
+              }
+            }
+
+            if (label && firstCanvas) {
               extractedData.push({
                 manifestUrl: url,
                 label: label,

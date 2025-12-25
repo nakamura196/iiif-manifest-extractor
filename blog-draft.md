@@ -77,9 +77,17 @@ IIIF Presentation API v2では、`structures`プロパティを使って論理�
 
 `structures`が存在しない場合は、`sequences[0].canvases`の最初の要素を取得するフォールバック処理を実装しています。
 
+## 対応バージョン
+
+本ツールはIIIF Presentation API v2とv3の両方に対応しています。
+
+- **v2**: `sequences[0].canvases`と`structures`の`canvases`配列を使用
+- **v3**: `items`配列と`structures`の`items`を使用
+
+バージョンは`@context`の値または`items`プロパティの有無で自動判定されます。
+
 ## 制限事項
 
-- **IIIF Presentation API v2のみ対応**: v3形式のManifest（`items`を使用するもの）には対応していません
 - **CORS制限**: Manifestを提供するサーバーがCORSを許可している必要があります
 
 ## 実装
