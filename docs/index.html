@@ -371,30 +371,83 @@ https://example.com/manifest3.json"></textarea>
       document.getElementById('outputPreview').value = generateCsv();
     }
 
+    function copyToClipboardFallback(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        return true;
+      } catch (err) {
+        return false;
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+
     function copyToClipboard(text) {
-      navigator.clipboard.writeText(text).then(() => {
-        alert('コピーしました');
-      }).catch(err => {
-        console.error('コピー失敗:', err);
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('コピーしました');
+        }).catch(() => {
+          if (copyToClipboardFallback(text)) {
+            alert('コピーしました');
+          } else {
+            alert('コピーに失敗しました');
+          }
+        });
+      } else {
+        if (copyToClipboardFallback(text)) {
+          alert('コピーしました');
+        } else {
+          alert('コピーに失敗しました');
+        }
+      }
     }
 
     function copyCsv() {
       const csv = generateCsv();
-      navigator.clipboard.writeText(csv).then(() => {
-        alert('CSVをコピーしました');
-      }).catch(err => {
-        console.error('コピー失敗:', err);
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(csv).then(() => {
+          alert('CSVをコピーしました');
+        }).catch(() => {
+          if (copyToClipboardFallback(csv)) {
+            alert('CSVをコピーしました');
+          } else {
+            alert('コピーに失敗しました');
+          }
+        });
+      } else {
+        if (copyToClipboardFallback(csv)) {
+          alert('CSVをコピーしました');
+        } else {
+          alert('コピーに失敗しました');
+        }
+      }
     }
 
     function copyJson() {
       const json = JSON.stringify(extractedData, null, 2);
-      navigator.clipboard.writeText(json).then(() => {
-        alert('JSONをコピーしました');
-      }).catch(err => {
-        console.error('コピー失敗:', err);
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(json).then(() => {
+          alert('JSONをコピーしました');
+        }).catch(() => {
+          if (copyToClipboardFallback(json)) {
+            alert('JSONをコピーしました');
+          } else {
+            alert('コピーに失敗しました');
+          }
+        });
+      } else {
+        if (copyToClipboardFallback(json)) {
+          alert('JSONをコピーしました');
+        } else {
+          alert('コピーに失敗しました');
+        }
+      }
     }
 
     function downloadCsv() {
