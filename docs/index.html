@@ -273,7 +273,7 @@
         document.getElementById('jsonOutput').value = JSON.stringify(extractedData, null, 2);
 
       } catch (error) {
-        resultsBody.innerHTML = `<tr><td colspan="4" class="error">エラー: ${escapeHtml(error.message)}</td></tr>';
+        resultsBody.innerHTML = `<tr><td colspan="4" class="error">エラー: ${escapeHtml(error.message)}</td></tr>`;
         console.error(error);
       } finally {
         btn.disabled = false;
