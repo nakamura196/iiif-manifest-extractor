@@ -27,14 +27,17 @@ IIIF（International Image Interoperability Framework）を利用したデジタ
 
 ## サンプル
 
-以下のManifest URLで動作を確認できます。
+以下のManifest URLで動作を確認できます。複数URLを入力することで、一括処理の動作も確認できます。
 
-**国立国会図書館デジタルコレクション「校異源氏物語. 巻一」:**
+**国立国会図書館デジタルコレクション「校異源氏物語」:**
 ```
 https://dl.ndl.go.jp/api/iiif/3437686/manifest.json
+https://dl.ndl.go.jp/api/iiif/3437687/manifest.json
 ```
 
-このManifestは源氏物語の各帖（きりつほ、ははきゝ、うつせみ、わかむらさき...など）がstructuresに定義されており、各帖の冒頭ページを抽出できます。
+これらのManifestは源氏物語の各帖（きりつほ、ははきゝ、うつせみ、わかむらさき...など）がstructuresに定義されており、各帖の冒頭ページを抽出できます。
+
+2つのManifest URLを入力することで、複数のManifestを一括で処理し、結果をまとめてCSV出力できることを確認できます。
 
 ## 技術的な仕組み
 

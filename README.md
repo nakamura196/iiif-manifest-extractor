@@ -24,9 +24,10 @@ IIIF Manifestから各巻（range/structure）の **label** と **最初のCanva
 
 ## サンプル
 
-国立国会図書館デジタルコレクション「校異源氏物語. 巻一」:
+国立国会図書館デジタルコレクション「校異源氏物語」（複数URL一括処理の例）:
 ```
 https://dl.ndl.go.jp/api/iiif/3437686/manifest.json
+https://dl.ndl.go.jp/api/iiif/3437687/manifest.json
 ```
 
 ## 制限事項
