@@ -1,4 +1,4 @@
-# IIIF Manifest 抽出ツール
+# IIIF 目次抽出ツール
 
 IIIF Manifestから各巻（range/structure）の **label** と **最初のCanvas URL** を抽出するWebツールです。
 
