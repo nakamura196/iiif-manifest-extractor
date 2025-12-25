@@ -36,13 +36,16 @@
       margin-bottom: 8px;
       font-weight: bold;
     }
-    input[type="text"] {
+    .input-textarea {
       width: 100%;
+      height: 120px;
       padding: 10px;
       font-size: 14px;
       border: 1px solid #ccc;
       border-radius: 4px;
       box-sizing: border-box;
+      font-family: monospace;
+      resize: vertical;
     }
     button {
       margin-top: 10px;
@@ -67,20 +70,21 @@
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .manifest-title {
-      font-size: 18px;
-      font-weight: bold;
+    .progress {
       margin-bottom: 15px;
-      color: #333;
+      padding: 10px;
+      background: #e8f4e8;
+      border-radius: 4px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
     }
     th, td {
-      padding: 12px;
+      padding: 10px;
       text-align: left;
       border-bottom: 1px solid #ddd;
+      font-size: 13px;
     }
     th {
       background: #8b4513;
@@ -88,6 +92,10 @@
     }
     tr:hover {
       background: #f9f9f9;
+    }
+    .url-cell {
+      max-width: 300px;
+      word-break: break-all;
     }
     .canvas-link {
       color: #0066cc;
@@ -99,8 +107,8 @@
     }
     .copy-btn {
       padding: 4px 8px;
-      font-size: 12px;
-      margin-left: 8px;
+      font-size: 11px;
+      margin: 0;
       background: #666;
     }
     .error {
@@ -108,6 +116,9 @@
       padding: 10px;
       background: #ffe0e0;
       border-radius: 4px;
+    }
+    .error-row {
+      background: #fff0f0;
     }
     .loading {
       text-align: center;
@@ -118,6 +129,12 @@
       margin-top: 15px;
       padding-top: 15px;
       border-top: 1px solid #ddd;
+    }
+    .export-buttons {
+      margin-bottom: 10px;
+    }
+    .export-buttons button {
+      margin-right: 10px;
     }
     textarea {
       width: 100%;
@@ -144,24 +161,27 @@
 
   <div class="description">
     <p>IIIF Manifestから各巻（range/structure）の<strong>label</strong>と<strong>最初のCanvas URL</strong>を抽出するツールです。</p>
-    <p>リンクをクリックしたときに該当仏典の冒頭ページを開くためのデータ抽出に利用できます。</p>
+    <p>複数のManifest URLを一括処理できます（1行に1つのURLを入力）。</p>
   </div>
 
   <div class="input-section">
-    <label for="manifestUrl">Manifest URL:</label>
-    <input type="text" id="manifestUrl" placeholder="https://example.com/manifest.json">
+    <label for="manifestUrls">Manifest URL（複数行可）:</label>
+    <textarea id="manifestUrls" class="input-textarea" placeholder="https://example.com/manifest1.json
+https://example.com/manifest2.json
+https://example.com/manifest3.json"></textarea>
     <div class="sample-url">
-      例: <a href="#" onclick="document.getElementById('manifestUrl').value='https://jodoshuzensho.jp/zojoji/koryo/manifests/001/001/0001/koryo_001_001_0001.json'; return false;">増上寺蔵高麗版大蔵経のサンプル</a>
+      例: <a href="#" onclick="document.getElementById('manifestUrls').value='https://jodoshuzensho.jp/zojoji/koryo/manifests/001/001/0001/koryo_001_001_0001.json'; return false;">増上寺蔵高麗版大蔵経のサンプル</a>
     </div>
-    <button id="fetchBtn" onclick="fetchManifest()">抽出</button>
+    <button id="fetchBtn" onclick="fetchManifests()">抽出</button>
   </div>
 
   <div id="results" class="results" style="display: none;">
-    <div id="manifestTitle" class="manifest-title"></div>
+    <div id="progress" class="progress"></div>
     <table>
       <thead>
         <tr>
           <th>No.</th>
+          <th>Manifest URL</th>
           <th>Label（巻名）</th>
           <th>最初のCanvas URL</th>
           <th>操作</th>
@@ -172,119 +192,183 @@
     </table>
 
     <div class="export-section">
-      <label>JSON出力:</label>
-      <textarea id="jsonOutput" readonly></textarea>
-      <button onclick="copyJson()">JSONをコピー</button>
-      <button onclick="downloadJson()">JSONをダウンロード</button>
+      <div class="export-buttons">
+        <button onclick="downloadCsv()">CSVをダウンロード</button>
+        <button onclick="copyCsv()">CSVをコピー</button>
+        <button onclick="downloadJson()">JSONをダウンロード</button>
+        <button onclick="copyJson()">JSONをコピー</button>
+      </div>
+      <label>出力プレビュー:</label>
+      <textarea id="outputPreview" readonly></textarea>
     </div>
   </div>
 
   <script>
     let extractedData = [];
 
-    async function fetchManifest() {
-      const url = document.getElementById('manifestUrl').value.trim();
-      if (!url) {
+    async function fetchManifests() {
+      const urlsText = document.getElementById('manifestUrls').value.trim();
+      if (!urlsText) {
         alert('URLを入力してください');
+        return;
+      }
+
+      const urls = urlsText.split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+      if (urls.length === 0) {
+        alert('有効なURLがありません');
         return;
       }
 
       const btn = document.getElementById('fetchBtn');
       const resultsDiv = document.getElementById('results');
       const resultsBody = document.getElementById('resultsBody');
+      const progressDiv = document.getElementById('progress');
 
       btn.disabled = true;
       btn.textContent = '読み込み中...';
-      resultsBody.innerHTML = '<tr><td colspan="4" class="loading">読み込み中...</td></tr>';
+      resultsBody.innerHTML = '';
+      extractedData = [];
       resultsDiv.style.display = 'block';
 
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const manifest = await response.json();
+      let rowIndex = 0;
 
-        // Manifest タイトル
-        const title = manifest.label || 'タイトルなし';
-        document.getElementById('manifestTitle').textContent = title;
+      for (let i = 0; i < urls.length; i++) {
+        const url = urls[i];
+        progressDiv.textContent = `処理中: ${i + 1} / ${urls.length} - ${url}`;
 
-        extractedData = [];
-        resultsBody.innerHTML = '';
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const manifest = await response.json();
 
-        // structures から range を抽出
-        if (manifest.structures && manifest.structures.length > 0) {
-          let index = 0;
-          for (const structure of manifest.structures) {
-            // 目次（親range）はスキップし、子rangeのみ処理
-            if (structure.ranges && structure.ranges.length > 0) {
-              // 親rangeの場合、子rangeを処理
-              continue;
+          let foundData = false;
+
+          // structures から range を抽出
+          if (manifest.structures && manifest.structures.length > 0) {
+            for (const structure of manifest.structures) {
+              // 目次（親range）はスキップし、子rangeのみ処理
+              if (structure.ranges && structure.ranges.length > 0) {
+                continue;
+              }
+
+              // canvasesを持つrangeを処理
+              if (structure.canvases && structure.canvases.length > 0) {
+                const label = structure.label || '(ラベルなし)';
+                const firstCanvas = structure.canvases[0];
+
+                extractedData.push({
+                  manifestUrl: url,
+                  label: label,
+                  firstCanvas: firstCanvas
+                });
+
+                rowIndex++;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                  <td>${rowIndex}</td>
+                  <td class="url-cell"><a href="${escapeHtml(url)}" target="_blank" class="canvas-link">${escapeHtml(url)}</a></td>
+                  <td>${escapeHtml(label)}</td>
+                  <td><a href="${escapeHtml(firstCanvas)}" target="_blank" class="canvas-link">${escapeHtml(firstCanvas)}</a></td>
+                  <td><button class="copy-btn" onclick="copyToClipboard('${escapeHtml(firstCanvas)}')">コピー</button></td>
+                `;
+                resultsBody.appendChild(row);
+                foundData = true;
+              }
             }
+          }
 
-            // canvasesを持つrangeを処理
-            if (structure.canvases && structure.canvases.length > 0) {
-              const label = structure.label || '(ラベルなし)';
-              const firstCanvas = structure.canvases[0];
+          // structuresがない場合やデータが取れなかった場合、sequencesから取得を試みる
+          if (!foundData && manifest.sequences && manifest.sequences.length > 0) {
+            const canvases = manifest.sequences[0].canvases || [];
+            if (canvases.length > 0) {
+              const label = manifest.label || 'Sequence 1';
+              const firstCanvas = canvases[0]['@id'] || canvases[0].id;
 
               extractedData.push({
+                manifestUrl: url,
                 label: label,
                 firstCanvas: firstCanvas
               });
 
-              index++;
+              rowIndex++;
               const row = document.createElement('tr');
               row.innerHTML = `
-                <td>${index}</td>
+                <td>${rowIndex}</td>
+                <td class="url-cell"><a href="${escapeHtml(url)}" target="_blank" class="canvas-link">${escapeHtml(url)}</a></td>
                 <td>${escapeHtml(label)}</td>
-                <td><a href="${firstCanvas}" target="_blank" class="canvas-link">${firstCanvas}</a></td>
-                <td><button class="copy-btn" onclick="copyToClipboard('${firstCanvas}')">コピー</button></td>
+                <td><a href="${escapeHtml(firstCanvas)}" target="_blank" class="canvas-link">${escapeHtml(firstCanvas)}</a></td>
+                <td><button class="copy-btn" onclick="copyToClipboard('${escapeHtml(firstCanvas)}')">コピー</button></td>
               `;
               resultsBody.appendChild(row);
+              foundData = true;
             }
           }
-        }
 
-        // structuresがない場合やデータが取れなかった場合、sequencesから取得を試みる
-        if (extractedData.length === 0 && manifest.sequences && manifest.sequences.length > 0) {
-          const canvases = manifest.sequences[0].canvases || [];
-          if (canvases.length > 0) {
-            extractedData.push({
-              label: manifest.label || 'Sequence 1',
-              firstCanvas: canvases[0]['@id'] || canvases[0].id
-            });
-
+          if (!foundData) {
+            rowIndex++;
             const row = document.createElement('tr');
+            row.className = 'error-row';
             row.innerHTML = `
-              <td>1</td>
-              <td>${escapeHtml(manifest.label || 'Sequence 1')}</td>
-              <td><a href="${extractedData[0].firstCanvas}" target="_blank" class="canvas-link">${extractedData[0].firstCanvas}</a></td>
-              <td><button class="copy-btn" onclick="copyToClipboard('${extractedData[0].firstCanvas}')">コピー</button></td>
+              <td>${rowIndex}</td>
+              <td class="url-cell"><a href="${escapeHtml(url)}" target="_blank" class="canvas-link">${escapeHtml(url)}</a></td>
+              <td colspan="3" class="error">抽出可能なデータが見つかりませんでした</td>
             `;
             resultsBody.appendChild(row);
           }
+
+        } catch (error) {
+          rowIndex++;
+          const row = document.createElement('tr');
+          row.className = 'error-row';
+          row.innerHTML = `
+            <td>${rowIndex}</td>
+            <td class="url-cell">${escapeHtml(url)}</td>
+            <td colspan="3" class="error">エラー: ${escapeHtml(error.message)}</td>
+          `;
+          resultsBody.appendChild(row);
         }
-
-        if (extractedData.length === 0) {
-          resultsBody.innerHTML = '<tr><td colspan="4" class="error">抽出可能なデータが見つかりませんでした</td></tr>';
-        }
-
-        // JSON出力
-        document.getElementById('jsonOutput').value = JSON.stringify(extractedData, null, 2);
-
-      } catch (error) {
-        resultsBody.innerHTML = `<tr><td colspan="4" class="error">エラー: ${escapeHtml(error.message)}</td></tr>`;
-        console.error(error);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '抽出';
       }
+
+      progressDiv.textContent = `完了: ${urls.length} 件のManifestを処理しました（${extractedData.length} 件のデータを抽出）`;
+
+      // 出力プレビュー（CSV形式）
+      updateOutputPreview();
+
+      btn.disabled = false;
+      btn.textContent = '抽出';
     }
 
     function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
       const div = document.createElement('div');
-      div.textContent = text;
+      div.textContent = String(text);
       return div.innerHTML;
+    }
+
+    function escapeCsvField(field) {
+      if (field === null || field === undefined) return '';
+      const str = String(field);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }
+
+    function generateCsv() {
+      const header = 'Manifest URL,Label,First Canvas URL';
+      const rows = extractedData.map(item =>
+        `${escapeCsvField(item.manifestUrl)},${escapeCsvField(item.label)},${escapeCsvField(item.firstCanvas)}`
+      );
+      return header + '\n' + rows.join('\n');
+    }
+
+    function updateOutputPreview() {
+      document.getElementById('outputPreview').value = generateCsv();
     }
 
     function copyToClipboard(text) {
@@ -295,8 +379,17 @@
       });
     }
 
+    function copyCsv() {
+      const csv = generateCsv();
+      navigator.clipboard.writeText(csv).then(() => {
+        alert('CSVをコピーしました');
+      }).catch(err => {
+        console.error('コピー失敗:', err);
+      });
+    }
+
     function copyJson() {
-      const json = document.getElementById('jsonOutput').value;
+      const json = JSON.stringify(extractedData, null, 2);
       navigator.clipboard.writeText(json).then(() => {
         alert('JSONをコピーしました');
       }).catch(err => {
@@ -304,8 +397,22 @@
       });
     }
 
+    function downloadCsv() {
+      const csv = generateCsv();
+      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'extracted_canvases.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     function downloadJson() {
-      const json = document.getElementById('jsonOutput').value;
+      const json = JSON.stringify(extractedData, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -316,13 +423,6 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
-
-    // Enterキーで実行
-    document.getElementById('manifestUrl').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        fetchManifest();
-      }
-    });
   </script>
 </body>
 </html>
