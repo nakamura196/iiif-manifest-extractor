@@ -304,38 +304,55 @@ https://example.com/manifest3.json"></textarea>
           let foundData = false;
           const isV3 = isV3Manifest(manifest);
 
-          // structures から range を抽出
+          // structures から range を抽出（再帰的に処理）
+          function processStructure(structure, isV3) {
+            let results = [];
+
+            if (isV3) {
+              // v3形式
+              const hasChildRanges = structure.items && structure.items.some(item => item.type === 'Range');
+
+              if (hasChildRanges) {
+                // 子Rangeを再帰的に処理
+                for (const item of structure.items) {
+                  if (item.type === 'Range') {
+                    results = results.concat(processStructure(item, isV3));
+                  }
+                }
+              } else {
+                // 末端Range: Canvasを持つ
+                const label = getLabel(structure.label);
+                const firstCanvas = getFirstCanvasFromV3Range(structure);
+                if (label && firstCanvas) {
+                  results.push({ label, firstCanvas });
+                }
+              }
+            } else {
+              // v2形式
+              if (structure.ranges && structure.ranges.length > 0) {
+                // 親rangeはスキップ（v2では子rangeはstructures配列に別途存在）
+                return results;
+              }
+              if (structure.canvases && structure.canvases.length > 0) {
+                const label = getLabel(structure.label);
+                const firstCanvas = structure.canvases[0];
+                if (label && firstCanvas) {
+                  results.push({ label, firstCanvas });
+                }
+              }
+            }
+            return results;
+          }
+
           if (manifest.structures && manifest.structures.length > 0) {
             for (const structure of manifest.structures) {
-              // v2: 目次（親range）はスキップし、子rangeのみ処理
-              if (!isV3 && structure.ranges && structure.ranges.length > 0) {
-                continue;
-              }
+              const structureResults = processStructure(structure, isV3);
 
-              let label = null;
-              let firstCanvas = null;
-
-              if (isV3) {
-                // v3形式
-                // 親Range（子Rangeを持つ）はスキップ
-                if (structure.items && structure.items.some(item => item.type === 'Range')) {
-                  continue;
-                }
-                label = getLabel(structure.label);
-                firstCanvas = getFirstCanvasFromV3Range(structure);
-              } else {
-                // v2形式: canvasesを持つrangeを処理
-                if (structure.canvases && structure.canvases.length > 0) {
-                  label = getLabel(structure.label);
-                  firstCanvas = structure.canvases[0];
-                }
-              }
-
-              if (label && firstCanvas) {
+              for (const result of structureResults) {
                 extractedData.push({
                   manifestUrl: url,
-                  label: label,
-                  firstCanvas: firstCanvas
+                  label: result.label,
+                  firstCanvas: result.firstCanvas
                 });
 
                 rowIndex++;
@@ -343,9 +360,9 @@ https://example.com/manifest3.json"></textarea>
                 row.innerHTML = `
                   <td>${rowIndex}</td>
                   <td class="url-cell"><a href="${escapeHtml(url)}" target="_blank" class="canvas-link">${escapeHtml(url)}</a></td>
-                  <td>${escapeHtml(label)}</td>
-                  <td><a href="${escapeHtml(firstCanvas)}" target="_blank" class="canvas-link">${escapeHtml(firstCanvas)}</a></td>
-                  <td><button class="copy-btn" onclick="copyToClipboard('${escapeHtml(firstCanvas)}')">コピー</button></td>
+                  <td>${escapeHtml(result.label)}</td>
+                  <td><a href="${escapeHtml(result.firstCanvas)}" target="_blank" class="canvas-link">${escapeHtml(result.firstCanvas)}</a></td>
+                  <td><button class="copy-btn" onclick="copyToClipboard('${escapeHtml(result.firstCanvas)}')">コピー</button></td>
                 `;
                 resultsBody.appendChild(row);
                 foundData = true;
